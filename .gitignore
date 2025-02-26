@@ -1,0 +1,56 @@
+# Dépendances
+node_modules/
+*.lock
+npm-debug.log
+yarn-error.log
+
+# Builds et artefacts
+dist/
+build/
+*.apk
+*.ipa
+android/build/
+ios/build/
+*.tsbuildinfo
+
+# Environnements locaux et secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+secrets/
+credentials.json
+digitalocean.yml
+
+# Logs et temporaires
+*.log
+logs/
+temp/
+tmp/
+
+# Base de données PostgreSQL
+*.sql
+pgdata/
+postgres-data/
+
+# Système d'exploitation
+.DS_Store
+Thumbs.db
+*.swp
+
+# Outils IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Spécifique Claude AI (génération code)
+claude-output/
+*.claude-gen
+temp-gen/
+
+# Fichiers spécifiques santé (tests locaux)
+*.csv
+*.jsonl
+test-data/

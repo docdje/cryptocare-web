@@ -1,7 +1,326 @@
-}]
+## Introduction
+
+Cette documentation est destinée aux développeurs qui travaillent sur la plateforme CryptoCare. Elle fournit les informations nécessaires pour configurer l'environnement de développement, comprendre l'architecture du système et suivre les normes et pratiques recommandées.
+
+## Table des matières
+
+1. [Configuration de l'environnement](#1-configuration-de-lenvironnement)
+2. [Architecture du projet](#2-architecture-du-projet)
+3. [Guidelines de développement](#3-guidelines-de-développement)
+4. [API et intégrations](#4-api-et-intégrations)
+5. [Bases de données](#5-bases-de-données)
+6. [Tests](#6-tests)
+7. [Déploiement](#7-déploiement)
+8. [Sécurité](#8-sécurité)
+9. [Résolution des problèmes courants](#9-résolution-des-problèmes-courants)
+10. [Ressources et liens utiles](#10-ressources-et-liens-utiles)
+
+## 1. Configuration de l'environnement
+
+### 1.1 Prérequis
+
+- **Node.js** v16+ ([Télécharger](https://nodejs.org/))
+- **npm** v8+ ou **yarn** v1.22+
+- **PostgreSQL** v14+ ([Télécharger](https://www.postgresql.org/download/))
+- **Git** ([Télécharger](https://git-scm.com/downloads))
+- **Docker** et **Docker Compose** (optionnel, pour le développement conteneurisé)
+
+### 1.2 Installation locale
+
+#### 1.2.1 Cloner le dépôt
+
+```bash
+# Cloner le dépôt principal
+git clone https://github.com/cryptocare-sa/cryptocare-platform.git
+cd cryptocare-platform
+
+# Initialiser les sous-modules (si applicable)
+git submodule update --init --recursive
+```
+
+#### 1.2.2 Configurer le backend
+
+```bash
+# Se déplacer dans le répertoire backend
+cd backend
+
+# Installer les dépendances
+npm install
+
+# Copier le fichier d'environnement
+cp .env.example .env
+
+# Éditer le fichier .env avec vos configurations locales
+# Notamment les identifiants de base de données et les clés API
+```
+
+Configuration minimale de `.env` pour le développement:
+
+```
+# Serveur
+PORT=4000
+NODE_ENV=development
+
+# Base de données
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=cryptocare_dev
+DB_USER=postgres
+DB_PASSWORD=votre_mot_de_passe
+
+# JWT
+JWT_SECRET=dev_secret_not_for_production
+JWT_EXPIRATION=24h
+
+# API Zoom (sandbox)
+ZOOM_CLIENT_ID=your_sandbox_client_id
+ZOOM_CLIENT_SECRET=your_sandbox_client_secret
+ZOOM_ACCOUNT_ID=your_sandbox_account_id
+
+# API Swiss Bitcoin Pay (testnet)
+SBP_API_KEY=your_testnet_api_key
+SBP_API_URL=https://api.testnet.swissbitcoinpay.ch
+SBP_WEBHOOK_BASE_URL=https://localhost:4000
+```
+
+#### 1.2.3 Configurer le frontend
+
+```bash
+# Se déplacer dans le répertoire frontend
+cd ../frontend
+
+# Installer les dépendances
+npm install
+
+# Copier le fichier d'environnement
+cp .env.example .env.local
+
+# Éditer le fichier .env.local avec vos configurations
+```
+
+Configuration minimale de `.env.local` pour le développement:
+
+```
+REACT_APP_API_URL=http://localhost:4000/api
+REACT_APP_ZOOM_SDK_KEY=your_zoom_sdk_key
+REACT_APP_SBP_PUBLIC_KEY=your_sbp_public_key
+```
+
+#### 1.2.4 Configurer l'application mobile (optionnel)
+
+```bash
+# Se déplacer dans le répertoire mobile
+cd ../mobile
+
+# Installer les dépendances
+npm install
+
+# Copier le fichier d'environnement
+cp .env.example .env
+
+# Éditer le fichier .env avec vos configurations
+```
+
+### 1.3 Configuration avec Docker
+
+Pour simplifier la configuration, vous pouvez utiliser Docker Compose:
+
+```bash
+# Depuis la racine du projet
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+Cela lancera:
+- PostgreSQL sur le port 5432
+- Le backend Node.js sur le port 4000
+- Le frontend React sur le port 3000
+
+Les volumes sont configurés pour la persistance des données et le hot-reloading du code.
+
+## 2. Architecture du projet
+
+### 2.1 Vue d'ensemble
+
+CryptoCare suit une architecture client-serveur avec des composants découplés:
+
+```
+┌────────────────┐    ┌────────────────┐    ┌────────────────┐
+│    Frontend    │    │    Backend     │    │  Base de       │
+│   (React.js)   │◄──►│   (Node.js)    │◄──►│  données       │
+└────────────────┘    └────────────────┘    │ (PostgreSQL)   │
+                              │             └────────────────┘
+       ┌──────────────────────┼──────────────────────┐
+       │                      │                      │
+┌──────▼─────┐        ┌───────▼────────┐      ┌─────▼──────┐
+│ Mobile     │        │ Zoom           │      │ Swiss      │
+│ (React     │        │ API            │      │ Bitcoin    │
+│  Native)   │        │                │      │ Pay API    │
+└────────────┘        └────────────────┘      └────────────┘
+```
+
+### 2.2 Composants principaux
+
+#### 2.2.1 Frontend (React.js)
+
+Le frontend est une application React.js qui utilise:
+- **React Router** pour la navigation
+- **Redux** pour la gestion d'état global
+- **Axios** pour les requêtes API
+- **i18next** pour l'internationalisation
+
+#### 2.2.2 Backend (Node.js/Express)
+
+Le backend est une API REST construite avec Node.js et Express qui:
+- Expose des endpoints REST pour le frontend
+- Gère l'authentification (JWT)
+- Communique avec la base de données
+- S'intègre avec Zoom et Swiss Bitcoin Pay
+
+#### 2.2.3 Mobile (React Native)
+
+L'application mobile est développée avec React Native et partage une grande partie de la logique métier avec le frontend web.
+
+#### 2.2.4 Base de données (PostgreSQL)
+
+La base de données relationnelle stocke toutes les données persistantes de l'application, à l'exception des données médicales.
+
+### 2.3 Flux de données typiques
+
+#### 2.3.1 Authentification
+
+```sequence
+Client->Backend: POST /api/auth/login (identifiants)
+Backend->Base de données: Vérification des identifiants
+Base de données->Backend: Utilisateur authentifié
+Backend->Client: JWT token
+Client->Client: Stockage du token dans localStorage
+```
+
+#### 2.3.2 Prise de rendez-vous et paiement
+
+```sequence
+Client->Backend: GET /api/professionals
+Backend->Base de données: Récupération des pros
+Backend->Client: Liste des professionnels
+Client->Backend: GET /api/professionals/:id/availability
+Backend->Base de données: Vérification des disponibilités
+Backend->Client: Créneaux disponibles
+Client->Backend: POST /api/appointments (création RDV)
+Backend->Base de données: Enregistrement du RDV
+Backend->Swiss Bitcoin Pay: Création facture
+Swiss Bitcoin Pay->Backend: QR code + infos paiement
+Backend->Client: Infos paiement + QR code
+Client->Swiss Bitcoin Pay: Paiement Bitcoin
+Swiss Bitcoin Pay->Backend: Webhook confirmation paiement
+Backend->Zoom: Création réunion
+Zoom->Backend: Lien Zoom
+Backend->Base de données: Mise à jour RDV (confirmé + lien)
+Backend->Client: Notification confirmation
+```
+
+## 3. Guidelines de développement
+
+### 3.1 Structure des dossiers
+
+#### 3.1.1 Frontend (React.js)
+
+```
+frontend/
+├── public/             # Ressources statiques
+│   ├── index.html      # Template HTML
+│   ├── locales/        # Fichiers de traduction
+│   └── assets/         # Images, icônes, etc.
+├── src/
+│   ├── api/            # Services API
+│   ├── components/     # Composants React réutilisables
+│   ├── context/        # Contextes React (Auth, etc.)
+│   ├── hooks/          # Hooks personnalisés
+│   ├── pages/          # Composants de pages
+│   ├── redux/          # Store, actions, reducers
+│   ├── routes/         # Configuration des routes
+│   ├── styles/         # Styles globaux (SCSS)
+│   ├── utils/          # Fonctions utilitaires
+│   ├── App.js          # Composant racine
+│   └── index.js        # Point d'entrée
+└── package.json        # Dépendances
+```
+
+#### 3.1.2 Backend (Node.js/Express)
+
+```
+backend/
+├── api/                # API REST
+│   ├── controllers/    # Contrôleurs
+│   ├── middlewares/    # Middlewares Express
+│   ├── routes/         # Définition des routes
+│   └── validators/     # Validation des requêtes
+├── config/             # Configuration
+├── db/                 # Couche d'accès aux données
+│   ├── migrations/     # Migrations de base de données
+│   ├── models/         # Modèles Sequelize
+│   └── seeders/        # Données de test
+├── integrations/       # Intégrations tierces
+│   ├── zoom/           # Intégration Zoom
+│   └── bitcoin/        # Intégration Swiss Bitcoin Pay
+├── services/           # Services métier
+├── utils/              # Utilitaires
+├── app.js              # Configuration Express
+└── server.js           # Point d'entrée du serveur
+```
+
+### 3.2 Conventions de code
+
+#### 3.2.1 Règles générales
+
+- **Indentation**: 2 espaces
+- **Quotes**: Simples (`'`) pour JavaScript, doubles (`"`) pour JSX
+- **Point-virgules**: Obligatoires
+- **Nommage**:
+  - Variables et fonctions: camelCase
+  - Composants React: PascalCase
+  - Fichiers de composants: PascalCase
+  - Fichiers JS autres: kebab-case
+  - Constantes: UPPER_SNAKE_CASE
+
+#### 3.2.2 Configuration ESLint
+
+Le projet utilise ESLint avec les configurations suivantes:
+
+**.eslintrc.js (Frontend)**:
+```javascript
+module.exports = {
+  extends: [
+    'react-app',
+    'plugin:jsx-a11y/recommended',
+    'plugin:prettier/recommended'
+  ],
+  plugins: ['jsx-a11y', 'prettier'],
+  rules: {
+    'prettier/prettier': 'error',
+    'no-console': process.env.NODE_ENV === 'production' ? 'error' : 'warn',
+    'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'warn',
+    'react/jsx-filename-extension': [1, { extensions: ['.js', '.jsx'] }],
+    'import/prefer-default-export': 'off'
   }
 };
 ```
+
+**.eslintrc.js (Backend)**:
+```javascript
+module.exports = {
+  extends: ['eslint:recommended', 'plugin:node/recommended', 'prettier'],
+  plugins: ['prettier'],
+  parserOptions: {
+    ecmaVersion: 2021
+  },
+  rules: {
+    'prettier/prettier': 'error',
+    'no-console': process.env.NODE_ENV === 'production' ? 'error' : 'warn',
+    'node/exports-style': ['error', 'module.exports'],
+    'node/no-unsupported-features/es-syntax': ['error', {
+      version: '>=16.0.0',
+      ignores: ['modules']
+    }]
 
 ### 3.3 Style de codage React
 
@@ -1227,326 +1546,3 @@ Pour toute question ou clarification, contactez l'équipe de développement via 
 
 Dernière mise à jour: Février 2025# Documentation Développeur - CryptoCare
 
-## Introduction
-
-Cette documentation est destinée aux développeurs qui travaillent sur la plateforme CryptoCare. Elle fournit les informations nécessaires pour configurer l'environnement de développement, comprendre l'architecture du système et suivre les normes et pratiques recommandées.
-
-## Table des matières
-
-1. [Configuration de l'environnement](#1-configuration-de-lenvironnement)
-2. [Architecture du projet](#2-architecture-du-projet)
-3. [Guidelines de développement](#3-guidelines-de-développement)
-4. [API et intégrations](#4-api-et-intégrations)
-5. [Bases de données](#5-bases-de-données)
-6. [Tests](#6-tests)
-7. [Déploiement](#7-déploiement)
-8. [Sécurité](#8-sécurité)
-9. [Résolution des problèmes courants](#9-résolution-des-problèmes-courants)
-10. [Ressources et liens utiles](#10-ressources-et-liens-utiles)
-
-## 1. Configuration de l'environnement
-
-### 1.1 Prérequis
-
-- **Node.js** v16+ ([Télécharger](https://nodejs.org/))
-- **npm** v8+ ou **yarn** v1.22+
-- **PostgreSQL** v14+ ([Télécharger](https://www.postgresql.org/download/))
-- **Git** ([Télécharger](https://git-scm.com/downloads))
-- **Docker** et **Docker Compose** (optionnel, pour le développement conteneurisé)
-
-### 1.2 Installation locale
-
-#### 1.2.1 Cloner le dépôt
-
-```bash
-# Cloner le dépôt principal
-git clone https://github.com/cryptocare-sa/cryptocare-platform.git
-cd cryptocare-platform
-
-# Initialiser les sous-modules (si applicable)
-git submodule update --init --recursive
-```
-
-#### 1.2.2 Configurer le backend
-
-```bash
-# Se déplacer dans le répertoire backend
-cd backend
-
-# Installer les dépendances
-npm install
-
-# Copier le fichier d'environnement
-cp .env.example .env
-
-# Éditer le fichier .env avec vos configurations locales
-# Notamment les identifiants de base de données et les clés API
-```
-
-Configuration minimale de `.env` pour le développement:
-
-```
-# Serveur
-PORT=4000
-NODE_ENV=development
-
-# Base de données
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=cryptocare_dev
-DB_USER=postgres
-DB_PASSWORD=votre_mot_de_passe
-
-# JWT
-JWT_SECRET=dev_secret_not_for_production
-JWT_EXPIRATION=24h
-
-# API Zoom (sandbox)
-ZOOM_CLIENT_ID=your_sandbox_client_id
-ZOOM_CLIENT_SECRET=your_sandbox_client_secret
-ZOOM_ACCOUNT_ID=your_sandbox_account_id
-
-# API Swiss Bitcoin Pay (testnet)
-SBP_API_KEY=your_testnet_api_key
-SBP_API_URL=https://api.testnet.swissbitcoinpay.ch
-SBP_WEBHOOK_BASE_URL=https://localhost:4000
-```
-
-#### 1.2.3 Configurer le frontend
-
-```bash
-# Se déplacer dans le répertoire frontend
-cd ../frontend
-
-# Installer les dépendances
-npm install
-
-# Copier le fichier d'environnement
-cp .env.example .env.local
-
-# Éditer le fichier .env.local avec vos configurations
-```
-
-Configuration minimale de `.env.local` pour le développement:
-
-```
-REACT_APP_API_URL=http://localhost:4000/api
-REACT_APP_ZOOM_SDK_KEY=your_zoom_sdk_key
-REACT_APP_SBP_PUBLIC_KEY=your_sbp_public_key
-```
-
-#### 1.2.4 Configurer l'application mobile (optionnel)
-
-```bash
-# Se déplacer dans le répertoire mobile
-cd ../mobile
-
-# Installer les dépendances
-npm install
-
-# Copier le fichier d'environnement
-cp .env.example .env
-
-# Éditer le fichier .env avec vos configurations
-```
-
-### 1.3 Configuration avec Docker
-
-Pour simplifier la configuration, vous pouvez utiliser Docker Compose:
-
-```bash
-# Depuis la racine du projet
-docker-compose -f docker-compose.dev.yml up -d
-```
-
-Cela lancera:
-- PostgreSQL sur le port 5432
-- Le backend Node.js sur le port 4000
-- Le frontend React sur le port 3000
-
-Les volumes sont configurés pour la persistance des données et le hot-reloading du code.
-
-## 2. Architecture du projet
-
-### 2.1 Vue d'ensemble
-
-CryptoCare suit une architecture client-serveur avec des composants découplés:
-
-```
-┌────────────────┐    ┌────────────────┐    ┌────────────────┐
-│    Frontend    │    │    Backend     │    │  Base de       │
-│   (React.js)   │◄──►│   (Node.js)    │◄──►│  données       │
-└────────────────┘    └────────────────┘    │ (PostgreSQL)   │
-                              │             └────────────────┘
-       ┌──────────────────────┼──────────────────────┐
-       │                      │                      │
-┌──────▼─────┐        ┌───────▼────────┐      ┌─────▼──────┐
-│ Mobile     │        │ Zoom           │      │ Swiss      │
-│ (React     │        │ API            │      │ Bitcoin    │
-│  Native)   │        │                │      │ Pay API    │
-└────────────┘        └────────────────┘      └────────────┘
-```
-
-### 2.2 Composants principaux
-
-#### 2.2.1 Frontend (React.js)
-
-Le frontend est une application React.js qui utilise:
-- **React Router** pour la navigation
-- **Redux** pour la gestion d'état global
-- **Axios** pour les requêtes API
-- **i18next** pour l'internationalisation
-
-#### 2.2.2 Backend (Node.js/Express)
-
-Le backend est une API REST construite avec Node.js et Express qui:
-- Expose des endpoints REST pour le frontend
-- Gère l'authentification (JWT)
-- Communique avec la base de données
-- S'intègre avec Zoom et Swiss Bitcoin Pay
-
-#### 2.2.3 Mobile (React Native)
-
-L'application mobile est développée avec React Native et partage une grande partie de la logique métier avec le frontend web.
-
-#### 2.2.4 Base de données (PostgreSQL)
-
-La base de données relationnelle stocke toutes les données persistantes de l'application, à l'exception des données médicales.
-
-### 2.3 Flux de données typiques
-
-#### 2.3.1 Authentification
-
-```sequence
-Client->Backend: POST /api/auth/login (identifiants)
-Backend->Base de données: Vérification des identifiants
-Base de données->Backend: Utilisateur authentifié
-Backend->Client: JWT token
-Client->Client: Stockage du token dans localStorage
-```
-
-#### 2.3.2 Prise de rendez-vous et paiement
-
-```sequence
-Client->Backend: GET /api/professionals
-Backend->Base de données: Récupération des pros
-Backend->Client: Liste des professionnels
-Client->Backend: GET /api/professionals/:id/availability
-Backend->Base de données: Vérification des disponibilités
-Backend->Client: Créneaux disponibles
-Client->Backend: POST /api/appointments (création RDV)
-Backend->Base de données: Enregistrement du RDV
-Backend->Swiss Bitcoin Pay: Création facture
-Swiss Bitcoin Pay->Backend: QR code + infos paiement
-Backend->Client: Infos paiement + QR code
-Client->Swiss Bitcoin Pay: Paiement Bitcoin
-Swiss Bitcoin Pay->Backend: Webhook confirmation paiement
-Backend->Zoom: Création réunion
-Zoom->Backend: Lien Zoom
-Backend->Base de données: Mise à jour RDV (confirmé + lien)
-Backend->Client: Notification confirmation
-```
-
-## 3. Guidelines de développement
-
-### 3.1 Structure des dossiers
-
-#### 3.1.1 Frontend (React.js)
-
-```
-frontend/
-├── public/             # Ressources statiques
-│   ├── index.html      # Template HTML
-│   ├── locales/        # Fichiers de traduction
-│   └── assets/         # Images, icônes, etc.
-├── src/
-│   ├── api/            # Services API
-│   ├── components/     # Composants React réutilisables
-│   ├── context/        # Contextes React (Auth, etc.)
-│   ├── hooks/          # Hooks personnalisés
-│   ├── pages/          # Composants de pages
-│   ├── redux/          # Store, actions, reducers
-│   ├── routes/         # Configuration des routes
-│   ├── styles/         # Styles globaux (SCSS)
-│   ├── utils/          # Fonctions utilitaires
-│   ├── App.js          # Composant racine
-│   └── index.js        # Point d'entrée
-└── package.json        # Dépendances
-```
-
-#### 3.1.2 Backend (Node.js/Express)
-
-```
-backend/
-├── api/                # API REST
-│   ├── controllers/    # Contrôleurs
-│   ├── middlewares/    # Middlewares Express
-│   ├── routes/         # Définition des routes
-│   └── validators/     # Validation des requêtes
-├── config/             # Configuration
-├── db/                 # Couche d'accès aux données
-│   ├── migrations/     # Migrations de base de données
-│   ├── models/         # Modèles Sequelize
-│   └── seeders/        # Données de test
-├── integrations/       # Intégrations tierces
-│   ├── zoom/           # Intégration Zoom
-│   └── bitcoin/        # Intégration Swiss Bitcoin Pay
-├── services/           # Services métier
-├── utils/              # Utilitaires
-├── app.js              # Configuration Express
-└── server.js           # Point d'entrée du serveur
-```
-
-### 3.2 Conventions de code
-
-#### 3.2.1 Règles générales
-
-- **Indentation**: 2 espaces
-- **Quotes**: Simples (`'`) pour JavaScript, doubles (`"`) pour JSX
-- **Point-virgules**: Obligatoires
-- **Nommage**:
-  - Variables et fonctions: camelCase
-  - Composants React: PascalCase
-  - Fichiers de composants: PascalCase
-  - Fichiers JS autres: kebab-case
-  - Constantes: UPPER_SNAKE_CASE
-
-#### 3.2.2 Configuration ESLint
-
-Le projet utilise ESLint avec les configurations suivantes:
-
-**.eslintrc.js (Frontend)**:
-```javascript
-module.exports = {
-  extends: [
-    'react-app',
-    'plugin:jsx-a11y/recommended',
-    'plugin:prettier/recommended'
-  ],
-  plugins: ['jsx-a11y', 'prettier'],
-  rules: {
-    'prettier/prettier': 'error',
-    'no-console': process.env.NODE_ENV === 'production' ? 'error' : 'warn',
-    'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'warn',
-    'react/jsx-filename-extension': [1, { extensions: ['.js', '.jsx'] }],
-    'import/prefer-default-export': 'off'
-  }
-};
-```
-
-**.eslintrc.js (Backend)**:
-```javascript
-module.exports = {
-  extends: ['eslint:recommended', 'plugin:node/recommended', 'prettier'],
-  plugins: ['prettier'],
-  parserOptions: {
-    ecmaVersion: 2021
-  },
-  rules: {
-    'prettier/prettier': 'error',
-    'no-console': process.env.NODE_ENV === 'production' ? 'error' : 'warn',
-    'node/exports-style': ['error', 'module.exports'],
-    'node/no-unsupported-features/es-syntax': ['error', {
-      version: '>=16.0.0',
-      ignores: ['modules']
-    }]

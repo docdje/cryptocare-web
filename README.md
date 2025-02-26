@@ -28,8 +28,8 @@ CryptoCare est une plateforme de télémédecine innovante basée à Zoug, Suiss
 1. Clonez le repository:
 
 ```bash
-git clone https://github.com/cryptocare-sa/cryptocare-platform.git
-cd cryptocare-platform
+git clone https://github.com/docdje/cryptocare-web.git
+cd cryptocare-web
 ```
 
 2. Installez les dépendances:

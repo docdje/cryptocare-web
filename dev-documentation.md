@@ -31,8 +31,8 @@ Cette documentation est destinée aux développeurs qui travaillent sur la plate
 
 ```bash
 # Cloner le dépôt principal
-git clone https://github.com/cryptocare-sa/cryptocare-platform.git
-cd cryptocare-platform
+git clone https://github.com/docdje/cryptocare-web.git
+cd cryptocare-web
 
 # Initialiser les sous-modules (si applicable)
 git submodule update --init --recursive
